@@ -53,6 +53,7 @@ from charmhelpers.core.hookenv import (
     storage_get,
     storage_list,
 )
+from charmhelpers.core.strutils import BasicStringComparator
 from charmhelpers.fetch import (
     apt_cache,
     add_source, apt_install, apt_update
@@ -132,6 +133,61 @@ NETWORK_ADAPTER_SYSCTLS = {
         'net.ipv4.tcp_adv_win_scale': 1
     }
 }
+
+# Map UCA codenames to ceph codenames
+UCA_CODENAME_MAP = {
+    'icehouse': 'firefly',
+    'juno': 'firefly',
+    'kilo': 'hammer',
+    'liberty': 'hammer',
+    'mitaka': 'jewel',
+    'newton': 'jewel',
+    'ocata': 'jewel',
+    'pike': 'luminous',
+    'queens': 'luminous',
+    'rocky': 'mimic',
+    'stein': 'mimic',
+    'train': 'nautilus',
+    'ussuri': 'octopus',
+}
+
+
+def resolve_ceph_version(source):
+    """Resolves a version of ceph based on source configuration
+    based on Ubuntu Cloud Archive pockets.
+
+    @param: source: source configuration option of charm
+    :returns: ceph release codename or None if not resolvable
+    """
+    os_release = get_os_codename_install_source(source)
+    return UCA_CODENAME_MAP.get(os_release)
+
+
+class CompareCephVersions(BasicStringComparator):
+    """Provide comparisons of Ceph versions.
+
+    Use in the form of
+
+    if CompareCephVersions(release) >= 'nautilus':
+        # do something with nautilus or above
+    """
+    _list = (
+        'argonaut',
+        'bobtail',
+        'cuttlefish',
+        'dumpling',
+        'emperor',
+        'firefly',
+        'giant',
+        'hammer',
+        'infernalis',
+        'jewel',
+        'kraken',
+        'luminous',
+        'mimic',
+        'nautilus',
+        'octopus',
+    )
 
 
 class Partition(object):
@@ -1111,12 +1167,25 @@ _default_caps = collections.OrderedDict([
     ('osd', ['allow rwx']),
 ])
 
-admin_caps = collections.OrderedDict([
-    ('mds', ['allow *']),
-    ('mgr', ['allow *']),
-    ('mon', ['allow *']),
-    ('osd', ['allow *'])
-])
+
+def get_admin_caps(source=None):
+    source = source or hookenv.config('source') or 'distro'
+    ceph_version = resolve_ceph_version(source)
+    if CompareCephVersions(ceph_version) >= 'nautilus':
+        return collections.OrderedDict([
+            ('mds', ['allow *']),
+            ('mgr', ['allow *']),
+            ('mon', ['allow *']),
+            ('osd', ['allow *'])
+        ])
+    else:
+        # Pre-Nautilus ceph-mon doesn't know about 'mgr'
+        return collections.OrderedDict([
+            ('mds', ['allow *']),
+            ('mon', ['allow *']),
+            ('osd', ['allow *'])
+        ])
+
 
 mds_caps = collections.OrderedDict([
     ('osd', ['allow *']),
@@ -3126,39 +3195,11 @@ UPGRADE_PATHS = collections.OrderedDict([
     ('nautilus', 'octopus'),
 ])
 
-# Map UCA codenames to ceph codenames
-UCA_CODENAME_MAP = {
-    'icehouse': 'firefly',
-    'juno': 'firefly',
-    'kilo': 'hammer',
-    'liberty': 'hammer',
-    'mitaka': 'jewel',
-    'newton': 'jewel',
-    'ocata': 'jewel',
-    'pike': 'luminous',
-    'queens': 'luminous',
-    'rocky': 'mimic',
-    'stein': 'mimic',
-    'train': 'nautilus',
-    'ussuri': 'octopus',
-}
-
 
 def pretty_print_upgrade_paths():
     """Pretty print supported upgrade paths for ceph"""
     return ["{} -> {}".format(key, value)
             for key, value in UPGRADE_PATHS.items()]
-
-
-def resolve_ceph_version(source):
-    """Resolves a version of ceph based on source configuration
-    based on Ubuntu Cloud Archive pockets.
-
-    @param: source: source configuration option of charm
-    :returns: ceph release codename or None if not resolvable
-    """
-    os_release = get_os_codename_install_source(source)
-    return UCA_CODENAME_MAP.get(os_release)
 
 
 def get_ceph_pg_stat():

@@ -845,7 +845,8 @@ def admin_relation_joined(relid=None):
             name = 'admin'
         log('mon cluster in quorum - providing admin client with keys')
         mon_hosts = config('monitor-hosts') or ' '.join(get_mon_hosts())
-        data = {'key': ceph.get_named_key(name=name, caps=ceph.admin_caps),
+        data = {'key': ceph.get_named_key(name=name,
+                                          caps=ceph.get_admin_caps()),
                 'fsid': leader_get('fsid'),
                 'auth': config('auth-supported'),
                 'mon_hosts': mon_hosts,
